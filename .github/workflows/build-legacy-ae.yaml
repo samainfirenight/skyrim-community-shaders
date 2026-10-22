@@ -49,7 +49,7 @@ jobs:
             - name: Configure an optimized build with crash symbols
               shell: pwsh
               run: |
-                  cmake --preset ALL -DDEVBENCH_BRIDGE=OFF -DZIP_TO_DIST=OFF -DAIO_ZIP_TO_DIST=OFF
+                  cmake --preset ALL -DZIP_TO_DIST=OFF -DAIO_ZIP_TO_DIST=OFF
                   if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed.' }
 
             - name: Build the DLL

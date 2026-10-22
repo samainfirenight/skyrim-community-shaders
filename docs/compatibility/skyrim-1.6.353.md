@@ -66,9 +66,9 @@ from the remaining review. This script never modifies game files.
 
 `.github/workflows/build-legacy-ae.yaml` builds this compatibility branch on a
 GitHub Windows runner. It uses the upstream compiler/dependency setup and
-packages the DLL, matching PDB and 1.9.1 assets, including Effects11. Devbench
-integration is disabled to avoid the absent-host message noise in the supplied
-log; this does not change Effects11 support.
+packages the DLL, matching PDB and 1.9.1 assets, including Effects11. It retains
+the upstream developer-bridge configuration; the bridge remains inactive when
+the optional devbench host is absent.
 
 The output is deliberately labelled an investigation package until the in-game
 save/new-game entry and rendering tests pass. Candidate 1 contains the targeted
