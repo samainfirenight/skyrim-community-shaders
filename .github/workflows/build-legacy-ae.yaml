@@ -1,0 +1,103 @@
+name: "Build CS 1.9.1 legacy AE investigation"
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - "compat/skyrim-1.6.353-cs-1.9.1"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: legacy-ae-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        if: github.repository == 'samainfirenight/skyrim-community-shaders'
+        runs-on: windows-2025
+        timeout-minutes: 120
+        steps:
+            - name: Check out compatibility source and pinned dependencies
+              uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+                  submodules: recursive
+                  persist-credentials: false
+
+            - name: Verify the CS 1.9.1 base
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  git merge-base --is-ancestor 265c28f53767e94dac1c0c3b211a0aa37d8ec396 HEAD
+                  if ($LASTEXITCODE -ne 0) {
+                      throw 'This workflow requires a branch based on the CS 1.9.1 release.'
+                  }
+                  $cmake = Get-Content CMakeLists.txt -Raw
+                  if ($cmake -notmatch 'VERSION\s+1\.9\.1(?:\s|\))') {
+                      throw 'Expected the CS 1.9.1 project version.'
+                  }
+
+            - name: Set up Windows compiler and dependencies on GitHub
+              uses: ./.github/actions/setup-build-environment
+              with:
+                  cache-key-suffix: legacy-ae-353
+                  cmake-preset: ALL
+                  build-dir: build/ALL
+
+            - name: Configure an optimized build with crash symbols
+              shell: pwsh
+              run: |
+                  cmake --preset ALL -DDEVBENCH_BRIDGE=OFF -DZIP_TO_DIST=OFF -DAIO_ZIP_TO_DIST=OFF
+                  if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed.' }
+
+            - name: Build the DLL
+              shell: pwsh
+              run: |
+                  cmake --build build/ALL --config Release --target CommunityShaders --parallel 4
+                  if ($LASTEXITCODE -ne 0) { throw 'C++ build failed.' }
+
+            - name: Stage matching CS 1.9.1 runtime assets
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $package = Join-Path $env:RUNNER_TEMP 'cs-191-legacy-ae-package'
+                  cmake --install build/ALL --config Release --prefix "$package"
+                  if ($LASTEXITCODE -ne 0) { throw 'Package installation failed.' }
+                  $required = @(
+                      'SKSE/Plugins/CommunityShaders.dll',
+                      'SKSE/Plugins/CommunityShaders.pdb',
+                      'Shaders/Features/Effects11.ini'
+                  )
+                  foreach ($file in $required) {
+                      if (-not (Test-Path (Join-Path $package $file))) {
+                          throw "Package is missing $file"
+                      }
+                  }
+                  Copy-Item docs/compatibility/skyrim-1.6.353.md (Join-Path $package 'LEGACY-AE-STATUS.md')
+                  git rev-parse HEAD | Set-Content (Join-Path $package 'SOURCE-COMMIT.txt')
+                  git submodule status --recursive | Set-Content (Join-Path $package 'DEPENDENCIES.txt')
+                  $dll = Join-Path $package 'SKSE/Plugins/CommunityShaders.dll'
+                  Get-FileHash $dll -Algorithm SHA256 | Format-List |
+                      Out-File (Join-Path $package 'SHA256.txt')
+                  New-Item -ItemType Directory -Force artifacts | Out-Null
+                  Compress-Archive -Path "$package/*" -DestinationPath artifacts/CS-1.9.1-legacy-AE-investigation.zip
+
+            - name: Upload the investigation package
+              uses: actions/upload-artifact@v7
+              with:
+                  name: CS-1.9.1-legacy-AE-investigation-${{ github.run_number }}
+                  path: artifacts/*
+                  if-no-files-found: error
+                  retention-days: 30
+
+            - name: Upload build logs on failure
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: CS-legacy-AE-build-logs-${{ github.run_number }}
+                  path: |
+                      build/ALL/CMakeFiles/CMakeConfigureLog.yaml
+                      build/ALL/vcpkg-manifest-install.log
+                  if-no-files-found: ignore
