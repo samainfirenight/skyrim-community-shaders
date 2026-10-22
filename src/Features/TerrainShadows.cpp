@@ -159,10 +159,23 @@ void TerrainShadows::DataLoaded()
 	if (const auto fastTravelEvents = eventSourceHolder->GetEventSource<RE::TESFastTravelEndEvent>())
 		fastTravelEvents->AddEventSink(&eventHandler);
 
-	if (const auto player = RE::PlayerCharacter::GetSingleton())
-		player->AsBGSActorCellEventSource()->AddEventSink(&eventHandler);
-	else
+	if (const auto player = RE::PlayerCharacter::GetSingleton()) {
+		auto* cellEvents = player->AsBGSActorCellEventSource();
+		if (REL::Module::IsAE() && !REL::Module::IsAtLeast(SKSE::RUNTIME_SSE_1_6_629)) {
+			// The pinned CommonLib accessor uses +0x2D8 for every pre-1.7 AE
+			// runtime. AE before 1.6.629 still has the older +0x2D0 layout.
+			// Registering at +0x2D8 corrupts the adjacent BSTEventSource arrays;
+			// the engine then dereferences a null pendingRegisters buffer when
+			// PlayerCharacter::SetParentCell sends its first cell-change event.
+			cellEvents = &REL::RelocateMember<RE::BSTEventSource<RE::BGSActorCellEvent>>(player, 0x2D0, 0x2E8);
+		}
+		cellEvents->AddEventSink(&eventHandler);
+		logger::info("[Terrain Shadows] Registered player cell-change listener at +0x{:X} for runtime {}",
+			reinterpret_cast<std::uintptr_t>(cellEvents) - reinterpret_cast<std::uintptr_t>(player),
+			REL::Module::get().version().string("."));
+	} else {
 		logger::warn("[Terrain Shadows] Player singleton not found");
+	}
 }
 
 void TerrainShadows::GameLoaded()

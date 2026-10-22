@@ -1,4 +1,4 @@
-name: "Build CS 1.9.1 legacy AE investigation"
+name: "Build CS 1.9.1 legacy AE candidate 1"
 
 on:
     workflow_dispatch:
@@ -82,12 +82,21 @@ jobs:
                   Get-FileHash $dll -Algorithm SHA256 | Format-List |
                       Out-File (Join-Path $package 'SHA256.txt')
                   New-Item -ItemType Directory -Force artifacts | Out-Null
-                  Compress-Archive -Path "$package/*" -DestinationPath artifacts/CS-1.9.1-legacy-AE-investigation.zip
+                  Compress-Archive -Path "$package/*" -DestinationPath artifacts/CS-1.9.1-1.6.353-candidate-1-full.zip
+                  $dllPackage = Join-Path $env:RUNNER_TEMP 'cs-191-353-dll-package'
+                  $plugins = Join-Path $dllPackage 'SKSE/Plugins'
+                  New-Item -ItemType Directory -Force $plugins | Out-Null
+                  Copy-Item $dll $plugins
+                  Copy-Item (Join-Path $package 'SKSE/Plugins/CommunityShaders.pdb') $plugins
+                  Copy-Item (Join-Path $package 'LEGACY-AE-STATUS.md') $dllPackage
+                  Copy-Item (Join-Path $package 'SOURCE-COMMIT.txt') $dllPackage
+                  Copy-Item (Join-Path $package 'SHA256.txt') $dllPackage
+                  Compress-Archive -Path "$dllPackage/*" -DestinationPath artifacts/CS-1.9.1-1.6.353-candidate-1-DLL.zip
 
-            - name: Upload the investigation package
+            - name: Upload candidate 1 packages
               uses: actions/upload-artifact@v7
               with:
-                  name: CS-1.9.1-legacy-AE-investigation-${{ github.run_number }}
+                  name: CS-1.9.1-1.6.353-candidate-1-${{ github.run_number }}
                   path: artifacts/*
                   if-no-files-found: error
                   retention-days: 30

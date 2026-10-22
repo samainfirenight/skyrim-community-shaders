@@ -54,6 +54,8 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	InitializeLog();
 	logger::info("Loaded {} {}", Plugin::NAME, Plugin::VERSION.string());
 	SKSE::Init(a_skse);
+	logger::info("Community Shaders 1.9.1 legacy AE candidate 1; Skyrim runtime {}",
+		REL::Module::get().version().string("."));
 	SKSE::AllocTrampoline(1 << 10);
 	return Load();
 }
